@@ -1,5 +1,6 @@
 import subprocess
 import secrets
+import multiprocessing
 from collections.abc import Iterable
 from pathlib import Path
 from .line import Line
@@ -42,6 +43,35 @@ class Edax:
                 text = True)
 
         return [Line(l) for l in result.stdout.split('\n')[2:-4]]
+
+    def choose_move(self, pos) -> list[int]:
+        result = self.solve(pos)
+        return [(r.pv[0] if r.pv else 64) for r in result]
+
+
+def split(lst: list, num_sections: int) -> list:
+    s, rem = divmod(len(lst), num_sections)
+    return [lst[i*(s+1):(i+1)*(s+1)] if i < rem else lst[rem+i*s:rem+(i+1)*s] for i in range(num_sections)]
+
+
+class MultiEdax:
+
+    def __init__(self, exe_path, hash_table_size: int|None = None, tasks: int|None = None, level: int|None = None, chunksize: int = multiprocessing.cpu_count() * 4):
+        self.edax = Edax(exe_path, hash_table_size, tasks, level)
+        self.chunksize = chunksize
+
+    @property
+    def name(self) -> str:
+        return self.edax.name
+    
+    def solve(self, pos) -> list[Line]:
+        if isinstance(pos, str) or not isinstance(pos, Iterable):
+            pos = [pos]
+
+        pool = pool.ThreadPool()
+        results = pool.map(self.edax.solve, split(pos, self.chunksize))
+        pool.close()
+        return [r for result in results for r in result]
 
     def choose_move(self, pos) -> list[int]:
         result = self.solve(pos)
